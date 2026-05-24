@@ -5,18 +5,15 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 
-# Personal thesis documents
+# dokumenti
 Pavle*
 
 # IDE
-.idea/
 .vscode/
 
-# Regenerated app outputs (convert from SUMO with xml2csv)
+# za sumo
 sumo_output/
 demo_output/
-
-# Heavy SUMO run outputs — keep scenarios, networks, demand, build scripts
 **/output/
 **/*fcd*.xml
 **/*emission*.xml
@@ -28,6 +25,5 @@ demo_output/
 **/*.errorlog
 **/*.log
 
-# Optional local caches
 .streamlit/secrets.toml
 **/.ipynb_checkpoints/
