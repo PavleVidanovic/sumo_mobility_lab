@@ -1,0 +1,85 @@
+from datetime import datetime
+from itertools import groupby
+
+import pandas as pd
+
+from mobiml.datasets import SPEED, DIRECTION, MOVER_ID
+from mobiml.datasets.aisdk import SHIPTYPE
+
+try:
+    import h3  # noqa F401
+except ImportError as error:
+    raise ImportError(
+        "Missing optional dependencies. To use the TrajectoryAggregator "
+        "please install h3-py"
+    ) from error
+
+
+class TrajectoryAggregator:
+    def __init__(self, trajs, vessels) -> None:
+        self.trajs = trajs
+        self.vessels = vessels
+
+    def aggregate_trajs(self, h3_resolution) -> pd.DataFrame:
+        """
+        Create a dataset of aggregated trajectory features for each trajectory,
+        including start and end speed, direction, and location, as well as an H3
+        sequence representation of the trajectory.
+
+        Parameters
+        ----------
+        h3_resolution : int
+            H3 resolution to use for trajectory aggregation
+
+        Returns
+        -------
+        DataFrame with columns client, MOVER_ID, SPEED_start, DIRECTION_start,
+        x_start, y_start, SPEED_end, DIRECTION_end, x_end, y_end, H3_seq, SHIPTYPE
+        """
+        print(f"{datetime.now()} Enriching trajectories ...")
+        traj_gdf = self.trajs.to_traj_gdf(
+            agg={"client": "mode", MOVER_ID: "mode", SPEED: ["max", "median"]}
+        )
+        traj_gdf.rename(
+            columns={"client_mode": "client", f"{MOVER_ID}_mode": MOVER_ID},
+            inplace=True,
+        )
+        traj_gdf["H3_seq"] = [
+            traj_to_h3_sequence(traj, h3_resolution) for traj in self.trajs.trajectories
+        ]
+
+        start_locations = self.trajs.get_start_locations()
+        end_locations = self.trajs.get_end_locations()
+        traj_gdf[f"{SPEED}_start"] = start_locations[SPEED].values
+        traj_gdf[f"{DIRECTION}_start"] = start_locations[DIRECTION].values
+        traj_gdf["x_start"] = start_locations.geometry.x.values
+        traj_gdf["y_start"] = start_locations.geometry.y.values
+        traj_gdf[f"{SPEED}_end"] = end_locations[SPEED].values
+        traj_gdf[f"{DIRECTION}_end"] = end_locations[DIRECTION].values
+        traj_gdf["x_end"] = end_locations.geometry.x.values
+        traj_gdf["y_end"] = end_locations.geometry.y.values
+
+        cols = traj_gdf.columns.to_list()
+        cols.append(SHIPTYPE)
+        dataset = traj_gdf.merge(
+            right=self.vessels, how="left", left_on=MOVER_ID, right_index=True
+        )
+        dataset = dataset[cols]
+        dataset.dropna(inplace=True)
+
+        print(f"Enriched dataset columns: {dataset.columns}")
+        return dataset
+
+
+@staticmethod
+def traj_to_h3_sequence(my_traj, h3_resolution):
+    df = my_traj.df.copy()
+    df["t"] = df.index
+    df["h3_cell"] = df.apply(
+        lambda row: str(
+            h3.latlng_to_cell(row.geometry.y, row.geometry.x, h3_resolution)
+        ),
+        axis=1,
+    ).index
+    h3_sequence = [key for key, _ in groupby(df.h3_cell.values.tolist())]
+    return h3_sequence

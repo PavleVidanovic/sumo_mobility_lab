@@ -1,0 +1,33 @@
+# Python / virtualenv
+.venv*/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Personal thesis documents
+Pavle*
+
+# IDE
+.idea/
+.vscode/
+
+# Regenerated app outputs (convert from SUMO with xml2csv)
+sumo_output/
+demo_output/
+
+# Heavy SUMO run outputs — keep scenarios, networks, demand, build scripts
+**/output/
+**/*fcd*.xml
+**/*emission*.xml
+**/run_fcd.csv
+**/run_emission.csv
+**/fcd.csv
+**/emission.csv
+**/vehroutes.xml
+**/*.errorlog
+**/*.log
+
+# Optional local caches
+.streamlit/secrets.toml
+**/.ipynb_checkpoints/

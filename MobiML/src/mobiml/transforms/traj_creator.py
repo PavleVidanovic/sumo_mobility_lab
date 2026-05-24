@@ -1,0 +1,54 @@
+import geopandas as gpd
+import movingpandas as mpd
+from datetime import timedelta
+from mobiml.datasets import Dataset, SPEED, TIMESTAMP, TRAJ_ID
+
+
+class TrajectoryCreator:
+    def __init__(self, data, min_length=100, min_duration=timedelta(minutes=0)) -> None:
+        if isinstance(data, gpd.GeoDataFrame):
+            gdf = data
+            print(f"Original Dataframe size: {len(gdf)} rows")
+            try:
+                gdf = gdf[gdf[SPEED] > 0]
+            except KeyError:
+                pass
+            print(f"   Reduced to: {len(gdf)} rows after removing records with speed=0")
+            print("Creating TrajectoryCollection ...")
+            self.tc = mpd.TrajectoryCollection(
+                gdf,
+                TRAJ_ID,
+                t=TIMESTAMP,
+                min_length=min_length,
+                min_duration=min_duration,
+            )
+        elif isinstance(data, mpd.TrajectoryCollection):
+            self.tc = self._filter(data, min_length, min_duration)
+        elif isinstance(data, Dataset):
+            self.tc = self._filter(data.to_trajs(), min_length, min_duration)
+        else:
+            raise TypeError(f"Invalid input data {data}")
+        print(f"   Created: {self.tc}")
+
+    @staticmethod
+    def _filter(tc, min_length, min_duration):
+        trajs = [
+            t for t in tc.trajectories
+            if t.get_length() >= min_length
+            and t.get_duration() >= min_duration
+        ]
+        return mpd.TrajectoryCollection(trajs)
+
+    def get_trajs(
+        self,
+        gap_duration=timedelta(minutes=15),
+        generalization_tolerance=timedelta(minutes=1),
+    ) -> mpd.TrajectoryCollection:
+        print("Generalizing ...")
+        self.tc = mpd.MinTimeDeltaGeneralizer(self.tc).generalize(
+            tolerance=generalization_tolerance
+        )
+        print(f"Splitting at observation gaps ({gap_duration}) ...")
+        self.tc = mpd.ObservationGapSplitter(self.tc).split(gap=gap_duration)
+        print(f"   Split: {self.tc}")
+        return self.tc
